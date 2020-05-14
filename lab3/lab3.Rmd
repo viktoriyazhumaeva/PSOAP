@@ -1,0 +1,172 @@
+<center>
+
+<br>
+<font size="5">МИНОБРНАУКИ РОССИИ</font><br><br>
+<font size="4">Федеральное государственное бюджетное образовательное учреждение высшегообразования</font><br>
+<font size="5">**"МИРЭА - РОССИЙСКИЙ ТЕХНОЛОГИЧЕСКИЙ УНИВЕРСИТЕТ"**</font><br><br>
+<font size="4">Лабораторная работа: "Исследование возможностей автоматизации сбора данных о доменах"<br><br><br><br><br><br><br>
+<div style="text-align: right">Выполнил: студент 4 курса<br>
+специальности 10.05.05 группы ББСО-02-16<br>
+Жумаева В.А.<br>
+Проверил:<br>
+Захарчук И.И.</div><br><br><br><br><br>
+Москва, 2020<br><br><br></center>
+
+<h2>**Цель работы:**</h2>
+Собрать информацию о топ 15 доменах в категории News and Media из списка  [https://www.alexa.com/topsites/category/Top/Computers](https://www.alexa.com/topsites/category/Top/Computers).<br>
+
+<h2>**Используемое ПО:**</h2>
+1. Rstudio IDE.<br>
+2. Nmap.<br>
+3. dig.<br>
+4. whois.<br>
+5. 2ip.ru<br>
+6. Windows 10.<br>
+
+<h2>**Собираемые данные:**</h2>
+1. Домен<br>
+2. IP<br>
+3. IP Netblock<br>
+3. Страна, город<br>
+4. Адрес<br>
+5. Телефон<br>
+6. Хостинг (при наличии)<br>
+7. Открытые порты<br>
+8. Используемые web-технологии на сайте<br>
+
+<center><h2>**Ход работы.**</h2></center>
+
+1. **Techradar** - это онлайн-издание, посвященное технологиям, с редакционными группами в США, Великобритании, Австралии и Индии. Он предоставляет новости и обзоры технических продуктов. 
+
+2. **Wired** - ежемесячный журнал, издающийся в Сан-Франциско и Лондоне. Пишет о влиянии компьютерных технологий на культуру, экономику и политику. 
+
+3. **PC Magazine** — компьютерный журнал, публикуемый американским издателем Ziff Davis. Печатная версия выходила с 1982 по январь 2009. Публикация онлайн-выпусков была начата в конце 1994 и продолжается до сегодняшнего дня.
+
+4. **TechCrunch** - интернет-издание о стартапах, интернет-бизнесе, инновациях и веб-сайтах. TechCrunch был основан Майклом Аррингтоном в 2005 году.
+
+5. **Ars Technica** -  новостное и аналитическое интернет-издание, посвящённое информационным технологиям (IT), на английском языке. Одно из самых популярных сетевых изданий об IT.
+
+6. **PC World** - ежемесячный журнал о компьютерных технологиях, издававшийся International Data Group с 1983 по 2013 год. Начиная с августа 2013 года печатная версия журнала была прекращена, а редакция журнала полностью перешла на онлайн-формат.
+
+7. **Laptop Mag** - является частью Future US Inc, международной медиа-группы и ведущего цифрового издателя.
+
+8. **Slashdot ** - англоязычный новостной сайт, специализирующийся на технических и интересных технической аудитории темах. Большая часть материалов присылается самими читателями и публикуется после проверки редакцией.
+
+9. **Computerworld** - еженедельник, издаваемый по лицензии International Data Group и посвящённый информационным технологиям. 
+
+10. **The Register** - британский новостной сайт технологической направленности. Единственный бумажный тираж был выпущен в 2000 году.
+
+11. **CIO** - это журнал, посвященный информационным технологиям. Журнал был основан в 1987 году и теперь полностью цифровой. Название относится к должности информационного директора.
+
+12. **Techmeme** - агрегатор технологических новостей. Веб-сайт был описан как «сводная, отфильтрованная, архивируемая сводка на одну страницу в режиме реального времени о том, что является новым и порождающим диалог». [
+
+13. **ExtremeTech** - это технологический веб-блог об оборудовании, компьютерном программном обеспечении, науке и других технологиях, который был запущен в мае 2001 года.
+
+14. **Readwrite** -  это блог о веб-технологиях, созданный в 2003 году. RW охватывает веб-технологии 2.0 и веб-технологии в целом, а также предоставляет новости, обзоры и аналитические материалы.
+
+15. **Digitalartsonline** -  медиа-компания, связанная с блогами.
+
+
+
+```{r, cache=TRUE} 
+library(tidyverse)
+
+get_sum_df <- function(company_url) {
+  country_state <- NA
+  
+  arp <- system2('arp', company_url, stdout = TRUE)
+  ip <- arp %>%
+    grep(pattern = company_url, value = TRUE) %>%
+      str_extract(pattern = '(\\b(?:[0-9]{1,3}\\.){3}[0-9]{1,3}\\b)')
+  ip <- ip[!is.na(ip)]
+
+  whois <- system2('whois', ip[1], stdout = TRUE)
+  phones <- whois %>%
+    grep(pattern = "Phone", value = TRUE, ignore.case = TRUE) %>%
+      str_squish() %>%
+        str_split(pattern = " ") %>%
+          data.table::transpose() %>%
+            .[[2]] %>%
+              unique() %>%
+                str_c(collapse = " ")
+  
+  netblock <- whois %>%
+    grep(pattern = "CIDR", value = TRUE, ignore.case = TRUE) %>%
+      str_squish() %>%
+        str_split(pattern = " ", simplify = TRUE) %>%
+          .[-1] %>%
+            str_c(collapse = " ")
+  
+  country <- whois %>%
+    grep(pattern = "Country", value = TRUE, ignore.case = TRUE) %>%
+      str_squish() %>%
+        str_split(pattern = " ", simplify = TRUE) %>%
+          .[-1]
+  
+  country_state <- whois %>%
+    grep(pattern = "State", value = TRUE, ignore.case = TRUE) %>%
+      str_squish() %>%
+        str_split(pattern = " ", simplify = TRUE) %>%
+          .[-1]
+  if(length(country_state)==0) country_state <- NA
+  
+  address <- whois %>%
+  grep(pattern = "address", value = TRUE, ignore.case = TRUE) %>%
+    str_squish() %>% 
+      str_split(pattern = " ", simplify = TRUE) %>%
+        .[-1] %>%
+          str_c(collapse = " ")
+  
+  hosting <- whois %>%
+    grep(pattern = "Hosting",
+      value = TRUE,
+        ignore.case = TRUE) %>%
+          str_squish() %>%
+            str_split(pattern = " ")
+  hosting <- lapply(hosting, collapse = " ", str_c) %>%
+    str_c(collapse = " ")
+  
+  nmap <-
+    system2('nmap', args = c('-p', '22,21,80,443', ip[1]), stdout = TRUE)
+  ports <- nmap %>%
+    grep(pattern = "open", value = TRUE, ignore.case = TRUE) %>%
+      str_squish() %>%
+        str_split(pattern = " ") %>%
+          data.table::transpose() %>%
+            .[[1]] %>%
+              str_c(collapse = " ")
+  
+  ip <- str_c(ip,collapse = ' ')
+  company_sum <- data.frame(csum = c(company_url, ip, netblock, country, country_state, address, phones, hosting, ports), 
+                 row.names = c('company_url', 'ip', 'netblock', 'country', 'country_state', 'address', 'phones', 'hosting', 'ports'))
+  company_sum
+}
+urls <- c("Techradar.com",  "Wired.com", "Pcmag.com", "Techcrunch.com", "Arstechnica.com", "Pcworld.com", "Laptopmag.com", "Slashdot.org", "Computerworld.com", "Theregister.co.uk", "Cio.com", "Techmeme.com", "Extremetech.com", "Readwrite.com", "Digitalartsonline.co.uk")
+  
+dfs <- lapply(urls, get_sum_df)
+result <- bind_cols(dfs) 
+row.names(result) <- c('company_url', 'ip', 'netblock', 'country', 'country_state', 'address', 'phones', 'hosting', 'ports')
+colnames(result) <- map(result[1,],as.character) %>% 
+  unlist()
+result <- result[-1,]
+knitr::kable(result)
+```
+
+```{r, cache=TRUE, message=FALSE, warning=FALSE}
+library(rappalyzer)
+rappalyze("Techradar.com")
+rappalyze("Wired.com")
+rappalyze("Pcmag.com")
+rappalyze("Techcrunch.com")
+rappalyze("Arstechnica.com")
+rappalyze("Pcworld.com")
+rappalyze("Laptopmag.com")
+rappalyze("Slashdot.org")
+rappalyze("Computerworld.com")
+rappalyze("Theregister.co.uk")
+rappalyze("Cio.com")
+rappalyze("Techmeme.com")
+rappalyze("Extremetech.com")
+rappalyze("Readwrite.com")
+rappalyze("Digitalartsonline.co.uk")
+```
